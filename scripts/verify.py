@@ -13,7 +13,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import jsonschema
 import requests
@@ -168,7 +168,6 @@ def fetch_ucp_profile(domain: str) -> dict | None:
                     break
 
                 # Resolve relative redirects against the current URL
-                from urllib.parse import urljoin
                 redirect_url = urljoin(current_url, raw_redirect)
                 parsed = urlparse(redirect_url)
 
