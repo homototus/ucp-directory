@@ -39,6 +39,15 @@ To remove a node, open an issue with the label `security` or submit a PR removin
 
 If a listed node is fraudulent or harmful, open an issue with the `security` label. Include the domain and a description of the concern.
 
+## Local Development
+
+```bash
+pip install -r scripts/requirements.txt
+python scripts/verify.py
+```
+
+Requires Python 3.12+.
+
 ## Code Contributions
 
 For changes to the crawler, site, or workflow:

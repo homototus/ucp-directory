@@ -60,6 +60,15 @@ Each node in `registry.json`:
 }
 ```
 
+## Local Development
+
+```bash
+pip install -r scripts/requirements.txt
+python scripts/verify.py
+```
+
+Requires Python 3.12+. The script reads `registry.json`, checks each node's `/.well-known/ucp` endpoint, and writes updated statuses back to `registry.json`.
+
 ## Contributing
 
 Contributions are welcome. To add or update a node, submit a pull request against `registry.json`.
