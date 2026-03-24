@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UCP Directory — Universal Commerce Protocol Nodes</title>
+  <meta name="description" content="Community tracker of live Universal Commerce Protocol (UCP) nodes. Discover merchants and platforms implementing the open commerce standard.">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --border: #262626;
+      --text: #e5e5e5;
+      --text-muted: #737373;
+      --accent: #3b82f6;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #6b7280;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+    }
+
+    header {
+      margin-bottom: 3rem;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 600px;
+    }
+
+    .subtitle a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .subtitle a:hover {
+      text-decoration: underline;
+    }
+
+    .stats {
+      display: flex;
+      gap: 1.5rem;
+      margin: 2rem 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      color: var(--text);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .node-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .node {
+      background: var(--surface);
+      padding: 1.25rem 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem;
+      align-items: start;
+    }
+
+    .node-name {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .node-name a {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .node-name a:hover {
+      color: var(--accent);
+    }
+
+    .node-domain {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+    }
+
+    .node-description {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      grid-column: 1 / -1;
+      margin-top: 0.25rem;
+    }
+
+    .node-meta {
+      display: flex;
+      gap: 1rem;
+      grid-column: 1 / -1;
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-verified {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--green);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+
+    .badge-pending {
+      background: rgba(234, 179, 8, 0.1);
+      color: var(--yellow);
+      border: 1px solid rgba(234, 179, 8, 0.2);
+    }
+
+    .badge-offline {
+      background: rgba(107, 114, 128, 0.1);
+      color: var(--red);
+      border: 1px solid rgba(107, 114, 128, 0.2);
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-verified { background: var(--green); }
+    .dot-pending { background: var(--yellow); }
+    .dot-offline { background: var(--red); }
+
+    .caps {
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+
+    .cap {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.45rem;
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, 0.15);
+      border-radius: 4px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    .empty {
+      background: var(--surface);
+      padding: 3rem;
+      text-align: center;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: var(--text);
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 2rem 1rem; }
+      .stats { flex-direction: column; gap: 0.5rem; }
+      .node { padding: 1rem; }
+      footer { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>UCP Directory</h1>
+      <p class="subtitle">
+        Community tracker of live
+        <a href="https://ucp.dev" target="_blank" rel="noopener">Universal Commerce Protocol</a>
+        nodes. Open, transparent, automated.
+      </p>
+    </header>
+
+    <div class="stats" id="stats">
+      <span><span class="stat-value" id="total">—</span> nodes</span>
+      <span><span class="stat-value" id="verified">—</span> verified</span>
+      <span><span class="stat-value" id="pending">—</span> pending</span>
+    </div>
+
+    <div id="nodes" class="loading">Loading registry...</div>
+
+    <footer>
+      <span>
+        Data from <a href="https://github.com/homototus/ucp-directory/blob/main/registry.json">registry.json</a>.
+        Verified every 6 hours.
+      </span>
+      <span>
+        <a href="https://github.com/homototus/ucp-directory/issues/new?template=register.yml">Register a node</a>
+        &middot;
+        <a href="https://github.com/homototus/ucp-directory">GitHub</a>
+      </span>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var container = document.getElementById("nodes");
+      var statsTotal = document.getElementById("total");
+      var statsVerified = document.getElementById("verified");
+      var statsPending = document.getElementById("pending");
+
+      fetch("registry.json")
+        .then(function (r) { return r.json(); })
+        .then(function (nodes) { render(nodes); })
+        .catch(function () {
+          container.className = "empty";
+          container.textContent = "Failed to load registry.";
+        });
+
+      function render(nodes) {
+        var vCount = 0;
+        var pCount = 0;
+
+        nodes.forEach(function (n) {
+          if (n.status === "verified") vCount++;
+          else if (n.status === "pending") pCount++;
+        });
+
+        statsTotal.textContent = nodes.length;
+        statsVerified.textContent = vCount;
+        statsPending.textContent = pCount;
+
+        if (nodes.length === 0) {
+          container.className = "empty";
+          container.textContent = "No nodes registered yet.";
+          return;
+        }
+
+        // Sort: verified first, then pending, then offline
+        var order = { verified: 0, pending: 1, offline: 2 };
+        nodes.sort(function (a, b) {
+          return (order[a.status] || 3) - (order[b.status] || 3);
+        });
+
+        // Clear container safely (no innerHTML)
+        while (container.firstChild) {
+          container.removeChild(container.firstChild);
+        }
+        container.className = "node-list";
+
+        nodes.forEach(function (node) {
+          var el = document.createElement("div");
+          el.className = "node";
+
+          var nameLink = document.createElement("a");
+          nameLink.href = node.url || ("https://" + node.domain);
+          nameLink.target = "_blank";
+          nameLink.rel = "noopener";
+          nameLink.textContent = node.name || node.domain;
+
+          var nameDiv = document.createElement("div");
+          nameDiv.className = "node-name";
+          nameDiv.appendChild(nameLink);
+
+          var domainDiv = document.createElement("div");
+          domainDiv.className = "node-domain";
+          domainDiv.textContent = node.domain;
+          nameDiv.appendChild(domainDiv);
+
+          var statusClass = (node.status === "verified" || node.status === "pending" || node.status === "offline")
+            ? node.status : "pending";
+
+          var badge = document.createElement("span");
+          badge.className = "badge badge-" + statusClass;
+          var dot = document.createElement("span");
+          dot.className = "dot dot-" + statusClass;
+          badge.appendChild(dot);
+          badge.appendChild(document.createTextNode(" " + (node.status || "unknown")));
+
+          var desc = document.createElement("div");
+          desc.className = "node-description";
+          desc.textContent = node.description || "";
+
+          el.appendChild(nameDiv);
+          el.appendChild(badge);
+          el.appendChild(desc);
+
+          // Capabilities
+          if (node.capabilities && node.capabilities.length > 0) {
+            var capsDiv = document.createElement("div");
+            capsDiv.className = "caps";
+            node.capabilities.forEach(function (c) {
+              var cap = document.createElement("span");
+              cap.className = "cap";
+              cap.textContent = String(c);
+              capsDiv.appendChild(cap);
+            });
+            el.appendChild(capsDiv);
+          }
+
+          // Meta info
+          var meta = document.createElement("div");
+          meta.className = "node-meta";
+          if (node.registered) {
+            var reg = document.createElement("span");
+            reg.textContent = "Registered " + formatDate(node.registered);
+            meta.appendChild(reg);
+          }
+          if (node.last_checked) {
+            var chk = document.createElement("span");
+            chk.textContent = "Checked " + formatDate(node.last_checked);
+            meta.appendChild(chk);
+          }
+          if (node.ucp_version) {
+            var ver = document.createElement("span");
+            ver.textContent = "UCP " + String(node.ucp_version);
+            meta.appendChild(ver);
+          }
+          if (meta.childNodes.length > 0) {
+            el.appendChild(meta);
+          }
+
+          container.appendChild(el);
+        });
+      }
+
+      function formatDate(iso) {
+        try {
+          var d = new Date(iso);
+          return d.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric"
+          });
+        } catch (e) {
+          return String(iso);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

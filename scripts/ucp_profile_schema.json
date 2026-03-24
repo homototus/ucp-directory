@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UCP Discovery Profile (minimal validation)",
+  "description": "Validates that a response is a plausible UCP discovery profile. This is a permissive schema — the official UCP schema at ucp.dev is authoritative.",
+  "type": "object",
+  "required": ["ucp"],
+  "properties": {
+    "ucp": {
+      "type": "object"
+    },
+    "signing_keys": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}
