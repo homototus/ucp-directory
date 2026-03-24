@@ -4,228 +4,401 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UCP Directory — Universal Commerce Protocol Nodes</title>
-  <meta name="description" content="Community tracker of live Universal Commerce Protocol (UCP) nodes. Discover merchants and platforms implementing the open commerce standard.">
+  <meta name="description" content="Open-source registry of live Universal Commerce Protocol (UCP) nodes. Discover merchants and platforms implementing the open commerce standard.">
+  <meta property="og:title" content="UCP Directory">
+  <meta property="og:description" content="Open-source registry of live Universal Commerce Protocol nodes.">
+  <meta property="og:url" content="https://hungry-ucp.dev">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0a0a0a;
-      --surface: #141414;
-      --border: #262626;
-      --text: #e5e5e5;
-      --text-muted: #737373;
-      --accent: #3b82f6;
-      --green: #22c55e;
-      --yellow: #eab308;
-      --offline: #6b7280;
+      --bg: #060608;
+      --surface: #0d0d10;
+      --surface-hover: #111116;
+      --border: rgba(197, 173, 129, 0.08);
+      --border-strong: rgba(197, 173, 129, 0.15);
+      --text: #e8e4dd;
+      --text-muted: #6b665e;
+      --gold: #c5ad81;
+      --gold-bright: #eba72a;
+      --gold-dim: rgba(197, 173, 129, 0.12);
+      --verified: #8fba7a;
+      --verified-bg: rgba(143, 186, 122, 0.08);
+      --pending: #c5ad81;
+      --pending-bg: rgba(197, 173, 129, 0.08);
+      --offline-color: #5a5550;
+      --offline-bg: rgba(90, 85, 80, 0.08);
+      --serif: 'Cormorant Garamond', 'Georgia', serif;
+      --sans: 'DM Sans', -apple-system, sans-serif;
+      --mono: 'JetBrains Mono', 'SF Mono', monospace;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-family: var(--sans);
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Subtle grain overlay */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
     }
 
     .container {
-      max-width: 900px;
+      max-width: 880px;
       margin: 0 auto;
-      padding: 3rem 1.5rem;
+      padding: 4rem 2rem;
     }
 
+    /* Header */
     header {
-      margin-bottom: 3rem;
+      margin-bottom: 3.5rem;
+      position: relative;
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
     }
 
     h1 {
-      font-size: 1.75rem;
+      font-family: var(--serif);
+      font-size: 2.8rem;
       font-weight: 600;
-      letter-spacing: -0.025em;
-      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .protocol-tag {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      font-weight: 500;
+      color: var(--gold);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.55rem;
+      border: 1px solid var(--border-strong);
+      border-radius: 3px;
+      position: relative;
+      top: -0.15rem;
     }
 
     .subtitle {
+      font-family: var(--serif);
       color: var(--text-muted);
-      font-size: 0.95rem;
-      max-width: 600px;
+      font-size: 1.15rem;
+      font-style: italic;
+      max-width: 520px;
+      line-height: 1.5;
     }
 
     .subtitle a {
-      color: var(--accent);
+      color: var(--gold);
       text-decoration: none;
+      border-bottom: 1px solid var(--border-strong);
+      transition: border-color 0.3s ease;
     }
 
     .subtitle a:hover {
-      text-decoration: underline;
+      border-color: var(--gold);
     }
 
+    /* Gold rule */
+    .rule {
+      width: 60px;
+      height: 1px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+      margin: 1.5rem 0 0;
+    }
+
+    /* Stats bar */
     .stats {
       display: flex;
-      gap: 1.5rem;
-      margin: 2rem 0;
-      font-size: 0.85rem;
-      color: var(--text-muted);
+      gap: 2.5rem;
+      margin: 0 0 2.5rem;
+      padding: 1.25rem 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
     }
 
     .stat-value {
+      font-family: var(--serif);
+      font-size: 1.75rem;
+      font-weight: 700;
       color: var(--text);
-      font-weight: 600;
+      line-height: 1;
       font-variant-numeric: tabular-nums;
     }
 
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    /* Node list */
     .node-list {
       display: flex;
       flex-direction: column;
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: hidden;
+      gap: 2px;
     }
 
     .node {
       background: var(--surface);
-      padding: 1.25rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.5rem 1.75rem;
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: 0.5rem;
+      gap: 0.4rem;
       align-items: start;
+      transition: background 0.3s ease, border-color 0.3s ease;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .node:hover {
+      background: var(--surface-hover);
+      border-color: var(--border-strong);
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .node-name {
+      font-family: var(--sans);
       font-weight: 600;
-      font-size: 1rem;
+      font-size: 1.05rem;
     }
 
     .node-name a {
       color: var(--text);
       text-decoration: none;
+      transition: color 0.3s ease;
     }
 
     .node-name a:hover {
-      color: var(--accent);
+      color: var(--gold);
     }
 
     .node-domain {
-      font-size: 0.8rem;
+      font-family: var(--mono);
+      font-size: 0.72rem;
       color: var(--text-muted);
-      font-family: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+      margin-top: 0.2rem;
     }
 
     .node-description {
       color: var(--text-muted);
-      font-size: 0.875rem;
+      font-size: 0.85rem;
       grid-column: 1 / -1;
-      margin-top: 0.25rem;
+      margin-top: 0.35rem;
+      line-height: 1.5;
     }
 
     .node-meta {
       display: flex;
-      gap: 1rem;
+      gap: 1.25rem;
       grid-column: 1 / -1;
-      margin-top: 0.5rem;
-      font-size: 0.75rem;
+      margin-top: 0.6rem;
+      font-family: var(--mono);
+      font-size: 0.65rem;
       color: var(--text-muted);
+      letter-spacing: 0.02em;
     }
 
+    .node-meta span::before {
+      content: "";
+      display: inline-block;
+      width: 3px;
+      height: 3px;
+      background: var(--border-strong);
+      border-radius: 50%;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+    }
+
+    .node-meta span:first-child::before {
+      display: none;
+    }
+
+    /* Badges */
     .badge {
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      padding: 0.2rem 0.6rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
+      gap: 0.4rem;
+      padding: 0.25rem 0.7rem;
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 0.65rem;
       font-weight: 500;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.1em;
     }
 
     .badge-verified {
-      background: rgba(34, 197, 94, 0.1);
-      color: var(--green);
-      border: 1px solid rgba(34, 197, 94, 0.2);
+      background: var(--verified-bg);
+      color: var(--verified);
+      border: 1px solid rgba(143, 186, 122, 0.15);
     }
 
     .badge-pending {
-      background: rgba(234, 179, 8, 0.1);
-      color: var(--yellow);
-      border: 1px solid rgba(234, 179, 8, 0.2);
+      background: var(--pending-bg);
+      color: var(--pending);
+      border: 1px solid rgba(197, 173, 129, 0.15);
     }
 
     .badge-offline {
-      background: rgba(107, 114, 128, 0.1);
-      color: var(--offline);
-      border: 1px solid rgba(107, 114, 128, 0.2);
+      background: var(--offline-bg);
+      color: var(--offline-color);
+      border: 1px solid rgba(90, 85, 80, 0.15);
     }
 
     .dot {
-      width: 6px;
-      height: 6px;
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
       display: inline-block;
     }
 
-    .dot-verified { background: var(--green); }
-    .dot-pending { background: var(--yellow); }
-    .dot-offline { background: var(--offline); }
+    .dot-verified { background: var(--verified); box-shadow: 0 0 6px rgba(143, 186, 122, 0.4); }
+    .dot-pending { background: var(--pending); box-shadow: 0 0 6px rgba(197, 173, 129, 0.3); }
+    .dot-offline { background: var(--offline-color); }
 
+    /* Capabilities */
     .caps {
       display: flex;
-      gap: 0.35rem;
+      gap: 0.3rem;
       flex-wrap: wrap;
+      grid-column: 1 / -1;
+      margin-top: 0.5rem;
     }
 
     .cap {
-      font-size: 0.7rem;
-      padding: 0.1rem 0.45rem;
-      background: rgba(59, 130, 246, 0.1);
-      color: var(--accent);
-      border: 1px solid rgba(59, 130, 246, 0.15);
-      border-radius: 4px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      padding: 0.15rem 0.5rem;
+      background: var(--gold-dim);
+      color: var(--gold);
+      border: 1px solid rgba(197, 173, 129, 0.1);
+      border-radius: 3px;
+      letter-spacing: 0.02em;
     }
 
+    /* States */
     .empty {
       background: var(--surface);
-      padding: 3rem;
+      padding: 4rem 2rem;
       text-align: center;
       color: var(--text-muted);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 1.1rem;
     }
 
     .loading {
       text-align: center;
-      padding: 3rem;
+      padding: 4rem;
       color: var(--text-muted);
+      font-family: var(--serif);
+      font-style: italic;
     }
 
+    /* Register CTA */
+    .cta {
+      margin-top: 2.5rem;
+      text-align: center;
+    }
+
+    .cta a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--sans);
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--bg);
+      background: var(--gold);
+      padding: 0.65rem 1.5rem;
+      border-radius: 3.625rem;
+      text-decoration: none;
+      letter-spacing: 0.03em;
+      transition: background 0.3s ease, transform 0.2s ease;
+    }
+
+    .cta a:hover {
+      background: var(--gold-bright);
+      transform: translateY(-1px);
+    }
+
+    .cta-sub {
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    /* Footer */
     footer {
-      margin-top: 3rem;
+      margin-top: 3.5rem;
       padding-top: 1.5rem;
       border-top: 1px solid var(--border);
-      font-size: 0.8rem;
+      font-size: 0.7rem;
       color: var(--text-muted);
       display: flex;
       justify-content: space-between;
       flex-wrap: wrap;
-      gap: 0.5rem;
+      gap: 0.75rem;
+      font-family: var(--mono);
+      letter-spacing: 0.02em;
     }
 
     footer a {
       color: var(--text-muted);
       text-decoration: none;
+      transition: color 0.3s ease;
     }
 
     footer a:hover {
-      color: var(--text);
+      color: var(--gold);
     }
 
-    @media (max-width: 600px) {
-      .container { padding: 2rem 1rem; }
-      .stats { flex-direction: column; gap: 0.5rem; }
-      .node { padding: 1rem; }
+    /* Responsive */
+    @media (max-width: 640px) {
+      .container { padding: 2.5rem 1.25rem; }
+      h1 { font-size: 2rem; }
+      .brand { flex-direction: column; gap: 0.5rem; }
+      .protocol-tag { align-self: flex-start; }
+      .stats { gap: 1.5rem; flex-wrap: wrap; }
+      .node { padding: 1.25rem; }
       footer { flex-direction: column; }
     }
   </style>
@@ -233,31 +406,47 @@
 <body>
   <div class="container">
     <header>
-      <h1>UCP Directory</h1>
+      <div class="brand">
+        <h1>UCP Directory</h1>
+        <span class="protocol-tag">v2026-01-23</span>
+      </div>
       <p class="subtitle">
-        Community tracker of live
+        An open registry of live
         <a href="https://ucp.dev" target="_blank" rel="noopener">Universal Commerce Protocol</a>
-        nodes. Open, transparent, automated.
+        nodes &mdash; verified every six hours.
       </p>
+      <div class="rule"></div>
     </header>
 
     <div class="stats" id="stats">
-      <span><span class="stat-value" id="total">—</span> nodes</span>
-      <span><span class="stat-value" id="verified">—</span> verified</span>
-      <span><span class="stat-value" id="pending">—</span> pending</span>
+      <div class="stat">
+        <span class="stat-value" id="total">&mdash;</span>
+        <span class="stat-label">Nodes</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="verified">&mdash;</span>
+        <span class="stat-label">Verified</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="pending">&mdash;</span>
+        <span class="stat-label">Pending</span>
+      </div>
     </div>
 
-    <div id="nodes" class="loading">Loading registry...</div>
+    <div id="nodes" class="loading">Loading registry&hellip;</div>
     <noscript><p class="empty">This page requires JavaScript to display the registry.</p></noscript>
+
+    <div class="cta">
+      <a href="https://github.com/homototus/ucp-directory/issues/new?template=register.yml">Register your node</a>
+      <p class="cta-sub">Open a GitHub issue to get listed</p>
+    </div>
 
     <footer>
       <span>
-        Data from <a href="https://github.com/homototus/ucp-directory/blob/main/registry.json">registry.json</a>.
-        Verified every 6 hours.
+        Data from <a href="https://github.com/homototus/ucp-directory/blob/main/registry.json">registry.json</a>
+        &middot; Crawled every 6h
       </span>
       <span>
-        <a href="https://github.com/homototus/ucp-directory/issues/new?template=register.yml">Register a node</a>
-        &middot;
         <a href="https://github.com/homototus/ucp-directory">GitHub</a>
         &middot;
         <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC-BY 4.0</a>
@@ -299,21 +488,20 @@
           return;
         }
 
-        // Sort: verified first, then pending, then offline
         var order = { verified: 0, pending: 1, offline: 2 };
         nodes.sort(function (a, b) {
           return (order[a.status] || 3) - (order[b.status] || 3);
         });
 
-        // Clear container safely (no innerHTML)
         while (container.firstChild) {
           container.removeChild(container.firstChild);
         }
         container.className = "node-list";
 
-        nodes.forEach(function (node) {
+        nodes.forEach(function (node, i) {
           var el = document.createElement("div");
           el.className = "node";
+          el.style.animationDelay = (i * 0.08) + "s";
 
           var nameLink = document.createElement("a");
           var href = node.url || ("https://" + node.domain);
@@ -350,7 +538,6 @@
           el.appendChild(badge);
           el.appendChild(desc);
 
-          // Capabilities
           if (node.capabilities && node.capabilities.length > 0) {
             var capsDiv = document.createElement("div");
             capsDiv.className = "caps";
@@ -363,7 +550,6 @@
             el.appendChild(capsDiv);
           }
 
-          // Meta info
           var meta = document.createElement("div");
           meta.className = "node-meta";
           if (node.registered) {
