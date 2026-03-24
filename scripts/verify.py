@@ -145,6 +145,7 @@ def fetch_ucp_profile(domain: str) -> dict | None:
     with _pinned_dns(domain, ip):
         try:
             session = requests.Session()
+            session.trust_env = False  # Prevent proxy env vars from bypassing DNS pinning
 
             # Follow redirects manually to validate each hop
             current_url = url
@@ -161,16 +162,24 @@ def fetch_ucp_profile(domain: str) -> dict | None:
                 if resp.status_code not in (301, 302, 303, 307, 308):
                     break
 
-                redirect_url = resp.headers.get("Location")
+                raw_redirect = resp.headers.get("Location")
                 resp.close()
-                if not redirect_url:
+                if not raw_redirect:
                     break
 
+                # Resolve relative redirects against the current URL
+                from urllib.parse import urljoin
+                redirect_url = urljoin(current_url, raw_redirect)
                 parsed = urlparse(redirect_url)
 
                 # Reject scheme downgrades
-                if parsed.scheme and parsed.scheme != "https":
+                if parsed.scheme != "https":
                     _err(f"  [{domain}] Redirect to non-HTTPS scheme, rejecting")
+                    return None
+
+                # Reject non-standard ports
+                if parsed.port and parsed.port != 443:
+                    _err(f"  [{domain}] Redirect to non-standard port {parsed.port}, rejecting")
                     return None
 
                 redirect_host = parsed.hostname
