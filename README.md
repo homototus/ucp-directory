@@ -70,4 +70,10 @@ This directory is a community-maintained resource. A listing does not imply endo
 
 ## License
 
-[MIT](LICENSE)
+**Code**: [MIT](LICENSE) — the software (crawler, site, workflow) is MIT licensed.
+
+**Data**: [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) — `registry.json` and all registry data are licensed under Creative Commons Attribution 4.0. You may freely use, share, and build upon this data with attribution.
+
+## Data Sources
+
+Initial seed domains discovered via [UCPChecker.com](https://ucpchecker.com) (CC-BY 4.0). All node statuses are independently verified by our crawler against each domain's `/.well-known/ucp` endpoint.
