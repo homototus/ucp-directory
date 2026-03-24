@@ -39,7 +39,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install requests jsonschema
+        run: pip install -r scripts/requirements.txt
 
       - name: Verify UCP nodes
         run: python scripts/verify.py
@@ -52,9 +52,15 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
+            git pull --rebase origin main
             git commit -m "chore: update node verification statuses"
             git push
           fi
+
+      - name: Prepare Pages artifact
+        run: |
+          mkdir -p _site
+          cp index.html registry.json CNAME .nojekyll _site/ 2>/dev/null || true
 
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
@@ -62,7 +68,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: '.'
+          path: '_site'
 
       - name: Deploy to GitHub Pages
         id: deployment

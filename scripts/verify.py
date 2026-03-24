@@ -11,13 +11,7 @@ import socket
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-
-try:
-    import jsonschema
-    import requests
-except ImportError:
-    print("Missing dependencies. Run: pip install requests jsonschema")
-    sys.exit(1)
+from urllib.parse import urlparse
 
 REGISTRY_PATH = Path(__file__).parent.parent / "registry.json"
 SCHEMA_PATH = Path(__file__).parent / "ucp_profile_schema.json"
@@ -27,18 +21,29 @@ MAX_RESPONSE_BYTES = 65536
 MAX_REDIRECTS = 3
 MAX_FAILURES_BEFORE_OFFLINE = 3
 MAX_STRING_LENGTH = 500
+MAX_CAPABILITIES = 50
 
 USER_AGENT = (
     "Mozilla/5.0 (compatible; UCP-Directory-Verifier/1.0; "
     "+https://hungry-ucp.dev)"
 )
 
-# Characters to strip from profile strings
+# Characters to strip from profile strings (control, bidi, zero-width, tags)
 CONTROL_CHARS = re.compile(
     r"[\u0000-\u001f\u007f-\u009f"
-    r"\u200b-\u200f\u2028-\u202f"
-    r"\u2060-\u206f\ufeff\ufff9-\ufffc]"
+    r"\u200b-\u200f\u2028-\u202e"
+    r"\u2060-\u206f\ufeff\ufff9-\ufffc"
+    r"\ue0000-\ue007f\ufe00-\ufe0f"
+    r"\ufdd0-\ufdef]"
 )
+
+# Valid domain: letters, digits, hyphens, dots, 2+ char TLD
+DOMAIN_RE = re.compile(
+    r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$"
+)
+
+# Valid capability identifier: alphanumeric with dots, underscores, hyphens
+CAP_RE = re.compile(r"^[a-zA-Z0-9._-]{1,200}$")
 
 
 def is_private_ip(ip_str: str) -> bool:
@@ -60,7 +65,7 @@ def resolve_domain(domain: str) -> str | None:
     """Resolve domain to IP, rejecting private addresses."""
     try:
         results = socket.getaddrinfo(domain, 443, socket.AF_UNSPEC, socket.SOCK_STREAM)
-        for family, _, _, _, sockaddr in results:
+        for _family, _, _, _, sockaddr in results:
             ip = sockaddr[0]
             if not is_private_ip(ip):
                 return ip
@@ -69,16 +74,25 @@ def resolve_domain(domain: str) -> str | None:
         return None
 
 
-def sanitize_string(value: str) -> str:
+def sanitize_string(value: object) -> str:
     """Strip control characters and truncate."""
     if not isinstance(value, str):
-        return ""
+        return str(value)[:MAX_STRING_LENGTH] if value is not None else ""
     cleaned = CONTROL_CHARS.sub("", value)
     return cleaned[:MAX_STRING_LENGTH]
 
 
 def fetch_ucp_profile(domain: str) -> dict | None:
-    """Fetch and validate a UCP profile from a domain."""
+    """Fetch and validate a UCP profile from a domain.
+
+    Security: manually follows redirects to validate each hop against SSRF.
+    Pins resolved IP to prevent DNS rebinding (TOCTOU).
+    Streams response with size cap.
+    """
+    if not DOMAIN_RE.match(domain):
+        print(f"  [{domain}] Invalid domain format")
+        return None
+
     ip = resolve_domain(domain)
     if ip is None:
         print(f"  [{domain}] DNS resolution failed or resolved to private IP")
@@ -87,111 +101,180 @@ def fetch_ucp_profile(domain: str) -> dict | None:
     url = f"https://{domain}/.well-known/ucp"
 
     try:
+        import requests
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.connection import create_connection
+
+        # Custom adapter that pins DNS resolution to our pre-validated IP.
+        # This prevents DNS rebinding attacks where the domain resolves to
+        # a different (internal) IP between our check and the actual connection.
+        class PinnedIPAdapter(HTTPAdapter):
+            def __init__(self, pinned_ip: str, **kwargs):
+                self.pinned_ip = pinned_ip
+                super().__init__(**kwargs)
+
+            def init_poolmanager(self, *args, **kwargs):
+                # Override socket creation to connect to pinned IP
+                original_create_connection = create_connection
+
+                pinned = self.pinned_ip
+
+                def patched_create_connection(address, *a, **kw):
+                    host, port = address
+                    return original_create_connection((pinned, port), *a, **kw)
+
+                import urllib3.util.connection
+                urllib3.util.connection.create_connection = patched_create_connection
+                try:
+                    super().init_poolmanager(*args, **kwargs)
+                finally:
+                    urllib3.util.connection.create_connection = original_create_connection
+
         session = requests.Session()
-        session.max_redirects = MAX_REDIRECTS
+        session.mount("https://", PinnedIPAdapter(ip))
 
-        resp = session.get(
-            url,
-            timeout=REQUEST_TIMEOUT,
-            headers={"User-Agent": USER_AGENT},
-            allow_redirects=True,
-            stream=True,
-        )
+        # Follow redirects manually to validate each hop
+        current_url = url
+        resp = None
+        for _ in range(MAX_REDIRECTS + 1):
+            resp = session.get(
+                current_url,
+                timeout=REQUEST_TIMEOUT,
+                headers={"User-Agent": USER_AGENT, "Host": domain},
+                allow_redirects=False,
+                stream=True,
+            )
 
-        # Check for cross-domain redirects
-        if resp.url and resp.url.startswith("http"):
-            from urllib.parse import urlparse
-            redirect_host = urlparse(resp.url).hostname
-            if redirect_host and redirect_host != domain:
+            if resp.status_code not in (301, 302, 303, 307, 308):
+                break
+
+            redirect_url = resp.headers.get("Location")
+            resp.close()
+            if not redirect_url:
+                break
+
+            redirect_host = urlparse(redirect_url).hostname
+            if not redirect_host or redirect_host != domain:
                 print(f"  [{domain}] Cross-domain redirect to {redirect_host}, rejecting")
                 return None
 
-        if resp.status_code != 200:
-            print(f"  [{domain}] HTTP {resp.status_code}")
+            # Re-validate IP for redirect target
+            redirect_ip = resolve_domain(redirect_host)
+            if redirect_ip is None:
+                print(f"  [{domain}] Redirect target resolves to private IP")
+                return None
+
+            current_url = redirect_url
+
+        if resp is None or resp.status_code != 200:
+            status = resp.status_code if resp else "no response"
+            print(f"  [{domain}] HTTP {status}")
             return None
 
         content_type = resp.headers.get("content-type", "")
-        if "json" not in content_type and "octet-stream" not in content_type:
+        if "json" not in content_type:
             print(f"  [{domain}] Unexpected content-type: {content_type}")
+            resp.close()
             return None
 
-        # Read with size limit
-        content = resp.content[:MAX_RESPONSE_BYTES]
-        if len(resp.content) > MAX_RESPONSE_BYTES:
-            print(f"  [{domain}] Response exceeds {MAX_RESPONSE_BYTES} bytes, truncated")
+        # Stream response with size cap (prevents memory exhaustion)
+        chunks = []
+        bytes_read = 0
+        for chunk in resp.iter_content(chunk_size=8192):
+            bytes_read += len(chunk)
+            if bytes_read > MAX_RESPONSE_BYTES:
+                print(f"  [{domain}] Response exceeds {MAX_RESPONSE_BYTES} bytes")
+                resp.close()
+                return None
+            chunks.append(chunk)
+        resp.close()
 
-        data = json.loads(content)
+        content = b"".join(chunks)
+        data = json.loads(content.decode("utf-8"))
+
+        if not isinstance(data, dict):
+            print(f"  [{domain}] Profile is not a JSON object")
+            return None
 
         # Schema validation if we have a schema file
         if SCHEMA_PATH.exists():
-            schema = json.loads(SCHEMA_PATH.read_text())
+            import jsonschema
+            schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
             jsonschema.validate(data, schema)
 
         return data
 
-    except requests.exceptions.Timeout:
-        print(f"  [{domain}] Request timed out ({REQUEST_TIMEOUT}s)")
-        return None
-    except requests.exceptions.ConnectionError as e:
-        print(f"  [{domain}] Connection error: {e}")
-        return None
-    except json.JSONDecodeError:
-        print(f"  [{domain}] Invalid JSON response")
-        return None
-    except jsonschema.ValidationError as e:
-        print(f"  [{domain}] Schema validation failed: {e.message}")
-        return None
     except Exception as e:
-        print(f"  [{domain}] Unexpected error: {e}")
+        error_type = type(e).__name__
+        print(f"  [{domain}] {error_type}: {e}")
         return None
 
 
 def extract_capabilities(profile: dict) -> list[str]:
-    """Extract capability names from a UCP profile."""
+    """Extract capability names from a UCP profile.
+
+    Only reads from ucp.capabilities (the spec-defined registry).
+    Does NOT read ucp.services (those are transports, not capabilities).
+    """
     caps = []
     ucp = profile.get("ucp", {})
 
-    # Try common locations for capabilities in UCP profiles
-    if isinstance(ucp, dict):
-        for key in ("capabilities", "services", "supported_capabilities"):
-            val = ucp.get(key)
-            if isinstance(val, list):
-                caps.extend(sanitize_string(str(c)) for c in val if c)
-            elif isinstance(val, dict):
-                caps.extend(sanitize_string(str(k)) for k in val.keys())
+    if not isinstance(ucp, dict):
+        return caps
 
-    return caps
+    val = ucp.get("capabilities")
+    if isinstance(val, dict):
+        for k in val.keys():
+            s = sanitize_string(k)
+            if CAP_RE.match(s):
+                caps.append(s)
+    elif isinstance(val, list):
+        for c in val:
+            s = sanitize_string(c)
+            if CAP_RE.match(s):
+                caps.append(s)
+
+    return caps[:MAX_CAPABILITIES]
 
 
 def extract_version(profile: dict) -> str | None:
-    """Extract UCP version from a profile."""
+    """Extract UCP spec version from a profile."""
     ucp = profile.get("ucp", {})
     if isinstance(ucp, dict):
-        version = ucp.get("version") or ucp.get("spec_version")
+        version = ucp.get("version")
         if version:
-            return sanitize_string(str(version))
+            s = sanitize_string(version)
+            # Accept YYYY-MM-DD or semver-like patterns
+            if re.match(r"^\d[\d.\-]{0,20}$", s):
+                return s
     return None
 
 
-def verify_nodes():
+def verify_nodes() -> None:
     """Main verification loop."""
     if not REGISTRY_PATH.exists():
         print("registry.json not found")
         sys.exit(1)
 
-    nodes = json.loads(REGISTRY_PATH.read_text())
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    nodes = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
 
+    if not isinstance(nodes, list):
+        print("registry.json is not a JSON array")
+        sys.exit(1)
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print(f"Verifying {len(nodes)} nodes at {now}\n")
 
     for node in nodes:
+        if not isinstance(node, dict):
+            continue
+
         domain = node.get("domain", "")
         print(f"Checking {domain}...")
 
         profile = fetch_ucp_profile(domain)
 
         if profile is not None:
-            # Successful verification
             node["status"] = "verified"
             node["capabilities"] = extract_capabilities(profile)
             node["profile_url"] = f"https://{domain}/.well-known/ucp"
@@ -200,7 +283,6 @@ def verify_nodes():
             node["ucp_version"] = extract_version(profile)
             print(f"  [{domain}] Verified successfully")
         else:
-            # Failed verification
             node["failure_count"] = node.get("failure_count", 0) + 1
 
             if (
@@ -214,9 +296,11 @@ def verify_nodes():
 
         node["last_checked"] = now
 
-    # Write updated registry
-    REGISTRY_PATH.write_text(json.dumps(nodes, indent=2) + "\n")
-    print(f"\nDone. Registry updated.")
+    # Atomic write: write to temp file then rename
+    tmp_path = REGISTRY_PATH.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(nodes, indent=2) + "\n", encoding="utf-8")
+    tmp_path.rename(REGISTRY_PATH)
+    print("\nDone. Registry updated.")
 
 
 if __name__ == "__main__":

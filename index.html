@@ -15,7 +15,7 @@
       --accent: #3b82f6;
       --green: #22c55e;
       --yellow: #eab308;
-      --red: #6b7280;
+      --offline: #6b7280;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -155,7 +155,7 @@
 
     .badge-offline {
       background: rgba(107, 114, 128, 0.1);
-      color: var(--red);
+      color: var(--offline);
       border: 1px solid rgba(107, 114, 128, 0.2);
     }
 
@@ -168,7 +168,7 @@
 
     .dot-verified { background: var(--green); }
     .dot-pending { background: var(--yellow); }
-    .dot-offline { background: var(--red); }
+    .dot-offline { background: var(--offline); }
 
     .caps {
       display: flex;
@@ -248,6 +248,7 @@
     </div>
 
     <div id="nodes" class="loading">Loading registry...</div>
+    <noscript><p class="empty">This page requires JavaScript to display the registry.</p></noscript>
 
     <footer>
       <span>
@@ -313,9 +314,11 @@
           el.className = "node";
 
           var nameLink = document.createElement("a");
-          nameLink.href = node.url || ("https://" + node.domain);
+          var href = node.url || ("https://" + node.domain);
+          if (!/^https?:\/\//i.test(href)) href = "https://" + node.domain;
+          nameLink.href = href;
           nameLink.target = "_blank";
-          nameLink.rel = "noopener";
+          nameLink.rel = "noopener noreferrer";
           nameLink.textContent = node.name || node.domain;
 
           var nameDiv = document.createElement("div");
