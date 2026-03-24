@@ -1,17 +1,15 @@
 # UCP Directory
 
-A community-maintained tracker of live [Universal Commerce Protocol](https://ucp.dev) nodes.
+An open-source, community-maintained registry of live [Universal Commerce Protocol](https://ucp.dev) nodes.
 
-UCP is an open standard enabling interoperability between commerce platforms, AI agents, and businesses. The protocol defines a decentralized discovery mechanism via `/.well-known/ucp` endpoints — but there is no central place to find participating merchants.
-
-This project fills that gap: a public, transparent registry of UCP nodes with automated verification.
+UCP is an open standard enabling interoperability between commerce platforms, AI agents, and businesses. While the protocol includes a decentralized discovery mechanism (`/.well-known/ucp`), no central directory of participating nodes exists. This project provides a public registry with automated health checks.
 
 ## How It Works
 
 - **Registry**: [`registry.json`](registry.json) lists all known UCP nodes with their current status
-- **Verification**: A GitHub Action crawls each node's `/.well-known/ucp` endpoint every 6 hours
+- **Verification**: A GitHub Action checks each node's `/.well-known/ucp` endpoint every 6 hours
 - **Status**: Nodes are marked as `verified`, `pending`, or `offline` based on crawler results
-- **Browsing**: Visit the [directory page](https://homototus.github.io/ucp-directory/) to explore nodes
+- **Browsing**: Visit [hungry-ucp.dev](https://hungry-ucp.dev) to explore nodes
 
 ## Node Statuses
 
@@ -19,7 +17,7 @@ This project fills that gap: a public, transparent registry of UCP nodes with au
 |--------|---------|
 | `verified` | `/.well-known/ucp` responds with a valid UCP profile |
 | `pending` | Registered but not yet serving a UCP profile |
-| `offline` | Was verified, but failed 3 consecutive checks |
+| `offline` | A previously verified node that has failed 3 consecutive health checks |
 
 ## Register Your Node
 
@@ -36,10 +34,10 @@ The registry is a plain JSON file. Fetch it directly:
 https://raw.githubusercontent.com/homototus/ucp-directory/main/registry.json
 ```
 
-GitHub Pages serves it with CORS headers, so client-side fetching works too:
+A CORS-enabled version for client-side use is also available:
 
 ```
-https://homototus.github.io/ucp-directory/registry.json
+https://hungry-ucp.dev/registry.json
 ```
 
 ## Schema
@@ -62,14 +60,29 @@ Each node in `registry.json`:
 }
 ```
 
+## Local Development
+
+```bash
+pip install -r scripts/requirements.txt
+python scripts/verify.py
+```
+
+Requires Python 3.12+. The script reads `registry.json`, checks each node's `/.well-known/ucp` endpoint, and writes updated statuses back to `registry.json`.
+
 ## Contributing
 
-PRs welcome. To add a node manually, edit `registry.json` and submit a PR. The CI will validate the format.
+Contributions are welcome. To add or update a node, submit a pull request against `registry.json`.
 
 ## Disclaimer
 
-Listing in this directory does not constitute endorsement. Verify merchants independently before transacting. This is a community project and is not affiliated with the UCP specification authors.
+This directory is a community-maintained resource. A listing does not imply endorsement by the project maintainers or the UCP specification authors. Please conduct your own due diligence before transacting with any listed entity.
 
 ## License
 
-[MIT](LICENSE)
+**Code**: [MIT](LICENSE) — the software (crawler, site, workflow) is MIT licensed.
+
+**Data**: [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) — `registry.json` and all registry data are licensed under Creative Commons Attribution 4.0. You may freely use, share, and build upon this data with attribution.
+
+## Data Sources
+
+Initial seed domains discovered via [UCPChecker.com](https://ucpchecker.com) (CC-BY 4.0). All node statuses are independently verified by our crawler against each domain's `/.well-known/ucp` endpoint.

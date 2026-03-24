@@ -1,0 +1,54 @@
+name: Register UCP Node
+description: Add your domain to the UCP Directory
+title: "[Register] "
+labels: ["registration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Register your UCP node in the directory. Once approved, the automated crawler
+        will begin verifying your `/.well-known/ucp` endpoint every 6 hours.
+
+  - type: input
+    id: domain
+    attributes:
+      label: Domain
+      description: The domain that hosts (or will host) `/.well-known/ucp`
+      placeholder: example.com
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Business Name
+      placeholder: Acme Corp
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What does your business sell or do?
+      placeholder: Brief description of your business
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: Website URL
+      placeholder: https://example.com
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I own or operate this domain
+          required: true
+        - label: I intend to serve a UCP profile at `/.well-known/ucp` on this domain
+          required: true

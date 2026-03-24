@@ -1,0 +1,5 @@
+# Registry requires maintainer review
+registry.json @homototus
+
+# Workflow changes require maintainer review
+.github/workflows/ @homototus
