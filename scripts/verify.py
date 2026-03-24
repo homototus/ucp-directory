@@ -96,7 +96,10 @@ def _pinned_dns(domain: str, ip: str):
 
     def pinned_getaddrinfo(host, port, *args, **kwargs):
         if host == domain:
-            # Return the pre-validated IP, preserving the expected format
+            # Return the pre-validated IP with correct address family
+            addr = ipaddress.ip_address(ip)
+            if addr.version == 6:
+                return [(socket.AF_INET6, socket.SOCK_STREAM, 0, "", (ip, port or 443, 0, 0))]
             return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", (ip, port or 443))]
         return original_getaddrinfo(host, port, *args, **kwargs)
 
