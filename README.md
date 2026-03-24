@@ -11,7 +11,7 @@ This project fills that gap: a public, transparent registry of UCP nodes with au
 - **Registry**: [`registry.json`](registry.json) lists all known UCP nodes with their current status
 - **Verification**: A GitHub Action crawls each node's `/.well-known/ucp` endpoint every 6 hours
 - **Status**: Nodes are marked as `verified`, `pending`, or `offline` based on crawler results
-- **Browsing**: Visit the [directory page](https://homototus.github.io/ucp-directory/) to explore nodes
+- **Browsing**: Visit [hungry-ucp.dev](https://hungry-ucp.dev) to explore nodes
 
 ## Node Statuses
 
@@ -39,7 +39,7 @@ https://raw.githubusercontent.com/homototus/ucp-directory/main/registry.json
 GitHub Pages serves it with CORS headers, so client-side fetching works too:
 
 ```
-https://homototus.github.io/ucp-directory/registry.json
+https://hungry-ucp.dev/registry.json
 ```
 
 ## Schema

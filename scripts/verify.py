@@ -30,7 +30,7 @@ MAX_STRING_LENGTH = 500
 
 USER_AGENT = (
     "Mozilla/5.0 (compatible; UCP-Directory-Verifier/1.0; "
-    "+https://github.com/homototus/ucp-directory)"
+    "+https://hungry-ucp.dev)"
 )
 
 # Characters to strip from profile strings
