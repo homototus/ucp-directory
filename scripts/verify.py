@@ -4,14 +4,19 @@ Crawls registered UCP nodes, validates their /.well-known/ucp profiles,
 and updates registry.json with current verification status.
 """
 
+import contextlib
 import ipaddress
 import json
 import re
 import socket
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+
+import jsonschema
+import requests
 
 REGISTRY_PATH = Path(__file__).parent.parent / "registry.json"
 SCHEMA_PATH = Path(__file__).parent / "ucp_profile_schema.json"
@@ -46,6 +51,11 @@ DOMAIN_RE = re.compile(
 CAP_RE = re.compile(r"^[a-zA-Z0-9._-]{1,200}$")
 
 
+def _err(msg: str) -> None:
+    """Print error to stderr."""
+    print(msg, file=sys.stderr)
+
+
 def is_private_ip(ip_str: str) -> bool:
     """Check if an IP address is private, loopback, or link-local."""
     try:
@@ -74,6 +84,29 @@ def resolve_domain(domain: str) -> str | None:
         return None
 
 
+@contextlib.contextmanager
+def _pinned_dns(domain: str, ip: str):
+    """Context manager that patches socket.getaddrinfo to return a pinned IP.
+
+    This prevents DNS rebinding attacks by ensuring the IP validated at
+    resolve time is the same IP used for the actual TCP connection.
+    Single-threaded only — safe for this CI script.
+    """
+    original_getaddrinfo = socket.getaddrinfo
+
+    def pinned_getaddrinfo(host, port, *args, **kwargs):
+        if host == domain:
+            # Return the pre-validated IP, preserving the expected format
+            return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", (ip, port or 443))]
+        return original_getaddrinfo(host, port, *args, **kwargs)
+
+    socket.getaddrinfo = pinned_getaddrinfo
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = original_getaddrinfo
+
+
 def sanitize_string(value: object) -> str:
     """Strip control characters and truncate."""
     if not isinstance(value, str):
@@ -85,129 +118,116 @@ def sanitize_string(value: object) -> str:
 def fetch_ucp_profile(domain: str) -> dict | None:
     """Fetch and validate a UCP profile from a domain.
 
-    Security: manually follows redirects to validate each hop against SSRF.
-    Pins resolved IP to prevent DNS rebinding (TOCTOU).
-    Streams response with size cap.
+    Security measures:
+    - Domain format validation (rejects path traversal, port injection)
+    - DNS resolution with private IP rejection
+    - Pinned DNS to prevent rebinding (TOCTOU)
+    - Manual redirect following with per-hop SSRF validation
+    - Reject scheme downgrades (https only)
+    - Streamed response with size cap
+    - Schema validation and string sanitization
     """
     if not DOMAIN_RE.match(domain):
-        print(f"  [{domain}] Invalid domain format")
+        _err(f"  [{domain}] Invalid domain format")
         return None
 
     ip = resolve_domain(domain)
     if ip is None:
-        print(f"  [{domain}] DNS resolution failed or resolved to private IP")
+        _err(f"  [{domain}] DNS resolution failed or resolved to private IP")
         return None
 
     url = f"https://{domain}/.well-known/ucp"
 
-    try:
-        import requests
-        from requests.adapters import HTTPAdapter
-        from urllib3.util.connection import create_connection
+    # Pin DNS for the duration of all requests to this domain
+    with _pinned_dns(domain, ip):
+        try:
+            session = requests.Session()
 
-        # Custom adapter that pins DNS resolution to our pre-validated IP.
-        # This prevents DNS rebinding attacks where the domain resolves to
-        # a different (internal) IP between our check and the actual connection.
-        class PinnedIPAdapter(HTTPAdapter):
-            def __init__(self, pinned_ip: str, **kwargs):
-                self.pinned_ip = pinned_ip
-                super().__init__(**kwargs)
+            # Follow redirects manually to validate each hop
+            current_url = url
+            resp = None
+            for _ in range(MAX_REDIRECTS + 1):
+                resp = session.get(
+                    current_url,
+                    timeout=REQUEST_TIMEOUT,
+                    headers={"User-Agent": USER_AGENT},
+                    allow_redirects=False,
+                    stream=True,
+                )
 
-            def init_poolmanager(self, *args, **kwargs):
-                # Override socket creation to connect to pinned IP
-                original_create_connection = create_connection
+                if resp.status_code not in (301, 302, 303, 307, 308):
+                    break
 
-                pinned = self.pinned_ip
+                redirect_url = resp.headers.get("Location")
+                resp.close()
+                if not redirect_url:
+                    break
 
-                def patched_create_connection(address, *a, **kw):
-                    host, port = address
-                    return original_create_connection((pinned, port), *a, **kw)
+                parsed = urlparse(redirect_url)
 
-                import urllib3.util.connection
-                urllib3.util.connection.create_connection = patched_create_connection
-                try:
-                    super().init_poolmanager(*args, **kwargs)
-                finally:
-                    urllib3.util.connection.create_connection = original_create_connection
+                # Reject scheme downgrades
+                if parsed.scheme and parsed.scheme != "https":
+                    _err(f"  [{domain}] Redirect to non-HTTPS scheme, rejecting")
+                    return None
 
-        session = requests.Session()
-        session.mount("https://", PinnedIPAdapter(ip))
+                redirect_host = parsed.hostname
+                if not redirect_host or redirect_host != domain:
+                    _err(f"  [{domain}] Cross-domain redirect to {redirect_host}, rejecting")
+                    return None
 
-        # Follow redirects manually to validate each hop
-        current_url = url
-        resp = None
-        for _ in range(MAX_REDIRECTS + 1):
-            resp = session.get(
-                current_url,
-                timeout=REQUEST_TIMEOUT,
-                headers={"User-Agent": USER_AGENT, "Host": domain},
-                allow_redirects=False,
-                stream=True,
-            )
+                current_url = redirect_url
 
-            if resp.status_code not in (301, 302, 303, 307, 308):
-                break
-
-            redirect_url = resp.headers.get("Location")
-            resp.close()
-            if not redirect_url:
-                break
-
-            redirect_host = urlparse(redirect_url).hostname
-            if not redirect_host or redirect_host != domain:
-                print(f"  [{domain}] Cross-domain redirect to {redirect_host}, rejecting")
+            if resp is None or resp.status_code != 200:
+                status = resp.status_code if resp else "no response"
+                _err(f"  [{domain}] HTTP {status}")
+                if resp:
+                    resp.close()
                 return None
 
-            # Re-validate IP for redirect target
-            redirect_ip = resolve_domain(redirect_host)
-            if redirect_ip is None:
-                print(f"  [{domain}] Redirect target resolves to private IP")
-                return None
-
-            current_url = redirect_url
-
-        if resp is None or resp.status_code != 200:
-            status = resp.status_code if resp else "no response"
-            print(f"  [{domain}] HTTP {status}")
-            return None
-
-        content_type = resp.headers.get("content-type", "")
-        if "json" not in content_type:
-            print(f"  [{domain}] Unexpected content-type: {content_type}")
-            resp.close()
-            return None
-
-        # Stream response with size cap (prevents memory exhaustion)
-        chunks = []
-        bytes_read = 0
-        for chunk in resp.iter_content(chunk_size=8192):
-            bytes_read += len(chunk)
-            if bytes_read > MAX_RESPONSE_BYTES:
-                print(f"  [{domain}] Response exceeds {MAX_RESPONSE_BYTES} bytes")
+            content_type = resp.headers.get("content-type", "")
+            if "json" not in content_type:
+                _err(f"  [{domain}] Unexpected content-type: {content_type}")
                 resp.close()
                 return None
-            chunks.append(chunk)
-        resp.close()
 
-        content = b"".join(chunks)
-        data = json.loads(content.decode("utf-8"))
+            # Stream response with size cap (prevents memory exhaustion)
+            chunks = []
+            bytes_read = 0
+            for chunk in resp.iter_content(chunk_size=8192):
+                bytes_read += len(chunk)
+                if bytes_read > MAX_RESPONSE_BYTES:
+                    _err(f"  [{domain}] Response exceeds {MAX_RESPONSE_BYTES} bytes")
+                    resp.close()
+                    return None
+                chunks.append(chunk)
+            resp.close()
 
-        if not isinstance(data, dict):
-            print(f"  [{domain}] Profile is not a JSON object")
-            return None
+            content = b"".join(chunks)
+            data = json.loads(content.decode("utf-8"))
 
-        # Schema validation if we have a schema file
-        if SCHEMA_PATH.exists():
-            import jsonschema
-            schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-            jsonschema.validate(data, schema)
+            if not isinstance(data, dict):
+                _err(f"  [{domain}] Profile is not a JSON object")
+                return None
 
-        return data
+            # Schema validation
+            if SCHEMA_PATH.exists():
+                schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+                jsonschema.validate(data, schema)
 
-    except Exception as e:
-        error_type = type(e).__name__
-        print(f"  [{domain}] {error_type}: {e}")
-        return None
+            return data
+
+        except requests.exceptions.Timeout:
+            _err(f"  [{domain}] Request timed out ({REQUEST_TIMEOUT}s)")
+        except requests.exceptions.ConnectionError as e:
+            _err(f"  [{domain}] Connection error: {e}")
+        except json.JSONDecodeError:
+            _err(f"  [{domain}] Invalid JSON response")
+        except UnicodeDecodeError:
+            _err(f"  [{domain}] Response is not valid UTF-8")
+        except jsonschema.ValidationError as e:
+            _err(f"  [{domain}] Schema validation failed: {e.message}")
+
+    return None
 
 
 def extract_capabilities(profile: dict) -> list[str]:
@@ -244,7 +264,6 @@ def extract_version(profile: dict) -> str | None:
         version = ucp.get("version")
         if version:
             s = sanitize_string(version)
-            # Accept YYYY-MM-DD or semver-like patterns
             if re.match(r"^\d[\d.\-]{0,20}$", s):
                 return s
     return None
@@ -253,13 +272,13 @@ def extract_version(profile: dict) -> str | None:
 def verify_nodes() -> None:
     """Main verification loop."""
     if not REGISTRY_PATH.exists():
-        print("registry.json not found")
+        _err("registry.json not found")
         sys.exit(1)
 
     nodes = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
 
     if not isinstance(nodes, list):
-        print("registry.json is not a JSON array")
+        _err("registry.json is not a JSON array")
         sys.exit(1)
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -296,10 +315,19 @@ def verify_nodes() -> None:
 
         node["last_checked"] = now
 
-    # Atomic write: write to temp file then rename
-    tmp_path = REGISTRY_PATH.with_suffix(".tmp")
-    tmp_path.write_text(json.dumps(nodes, indent=2) + "\n", encoding="utf-8")
-    tmp_path.rename(REGISTRY_PATH)
+    # Atomic write: unique temp file then replace (cross-platform safe)
+    fd, tmp_path = tempfile.mkstemp(
+        dir=REGISTRY_PATH.parent, suffix=".tmp", prefix="registry_"
+    )
+    try:
+        with open(fd, "w", encoding="utf-8") as f:
+            json.dump(nodes, f, indent=2)
+            f.write("\n")
+        Path(tmp_path).replace(REGISTRY_PATH)
+    except Exception:
+        Path(tmp_path).unlink(missing_ok=True)
+        raise
+
     print("\nDone. Registry updated.")
 
 
